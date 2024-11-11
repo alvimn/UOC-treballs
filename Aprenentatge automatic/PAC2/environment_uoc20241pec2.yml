@@ -1,0 +1,15 @@
+name: uoc20241pec2
+channels:
+  - defaults
+dependencies:
+  - matplotlib=3.9.2
+  - jupyter=1.0.0
+  - tqdm=4.66.5
+  - scipy=1.13.1
+  - scikit-learn=1.5.1
+  - numpy=1.26.4
+  - pip=24.2
+  - python=3.12.7
+  - pip:
+    - sentence-transformers==3.2.1
+    - umap-learn==0.5.6
