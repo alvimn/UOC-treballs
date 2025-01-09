@@ -2,3 +2,4 @@
 *.csv#
 *.exe
 *.xlsx#
+/Bases_de_dades
