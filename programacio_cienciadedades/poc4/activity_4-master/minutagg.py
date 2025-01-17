@@ -23,7 +23,7 @@ def minutes_002040(time):
 
 def gruptimes(df):
     df["time_grouped"] = df["time"].apply(lambda x: minutes_002040(x))
-    print("Despres de agrupar els tems les dades les 15 primeres entrades del dataset son: \n")
+    print("Despres de agrupar els temps les dades les 15 primeres entrades del dataset son: \n")
     print(df.head(15))
     df_gruped = df["time_grouped"].value_counts(sort=False).sort_index()
     print("Despres de agrupar els tems les dades del dataset son: \n")
@@ -31,4 +31,4 @@ def gruptimes(df):
     df_gruped.plot(kind='bar')
     plt.show()
     plt.savefig("img/histograma.png")
-    return
+    return df
