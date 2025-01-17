@@ -34,7 +34,7 @@ def name_surname(df):
     Returns:
     DataFrame: Modified dataframe with anonymized names and filtered entries
     """
-    #  Anonymizes the 'biker' column using the funcion generate_name
+    # Apply generate_name function to each entry in the 'biker' column
     df["biker"] = df["biker"].apply(lambda x: generate_name(x))
     print("Despres de anominitzar les dades les 5 primeres entrades del dataset son: \n")
     print(df.head(5))
