@@ -40,8 +40,8 @@ python main.py
 ## Example
 When you run main.py, it will:
 
-Load the dataset and display the first 5 entries.
+Load the dataset and display the first 5 entries, the number of datapoints and the column names.
 Anonymize the biker names and display the first 5 entries after anonymization.
-Group the times and display the first 15 entries of the dataset with grouped times.
+Group the times and display the first 15 entries of the dataset with grouped times and plots a histogram of the grouped times and saves the plot in the int/ folder.
 Clean and depurate club names and display the first 15 entries of the dataset with clean club names.
 Analyze the team data for the "UCSC" team, identifying the best performer and their position relative to the entire dataset.
