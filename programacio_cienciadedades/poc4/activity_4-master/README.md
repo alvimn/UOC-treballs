@@ -16,7 +16,7 @@ Usage
 Ensure all required packages are installed. You can use the following command to install necessary packages:
 
 bash
-pip install pandas faker matplotlib
+pip install -r requirements.txt
 Place the dataset in the data directory with the name dataset.csv.
 
 Run the main script:
