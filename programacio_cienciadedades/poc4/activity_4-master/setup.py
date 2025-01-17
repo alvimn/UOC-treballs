@@ -9,13 +9,13 @@ import pandas as pd
 
 
 def datapull():
-     """
-    Loads the dataset from a CSV file, prints basic details of the dataset,
-    and returns the DataFrame.
-
-    Returns:
-    DataFrame: Loaded dataset as a pandas DataFrame.
     """
+   Loads the dataset from a CSV file, prints basic details of the dataset,
+   and returns the DataFrame.
+
+   Returns:
+   DataFrame: Loaded dataset as a pandas DataFrame.
+   """
     # Load the dataset from the specified CSV file
     df = pd.read_csv("data/dataset.csv", sep=";")
 
@@ -25,7 +25,7 @@ def datapull():
 
     # Print the total number of entries in the dataset
     print("\n El data set te " + str(len(df)) + " entrades \n")
-    
+
     # Print the column names of the dataset
     print("Les columnes del data set son:\n")
     print(list(df.columns))

@@ -51,9 +51,9 @@ def gruptimes(df):
     df_gruped = df["time_grouped"].value_counts(sort=False).sort_index()
     print("Despres de agrupar els tems les dades del dataset son: \n")
     print(df_gruped)
-    
+
     # Plot the grouped time counts as a bar chart
     df_gruped.plot(kind='bar')
-    plt.show() # Display the plot
+    plt.show()  # Display the plot
     plt.savefig("img/histograma.png")   # Save the plot as an image file
     return df

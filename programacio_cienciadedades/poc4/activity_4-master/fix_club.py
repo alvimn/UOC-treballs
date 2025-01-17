@@ -18,7 +18,7 @@ def clean_club(name):
     Returns:
     str: The cleaned club name.
     """
-     # Convert name to uppercase
+    # Convert name to uppercase
     name = name.upper()
 
     # List of substrings to remove from the club name
@@ -61,16 +61,16 @@ def clean_club(name):
 
 
 def club_depuration(df):
-     """
-    Cleans the 'club' column in the dataframe and adds a new 'club_clean' column with cleaned names.
-    Prints the first 15 entries of the cleaned dataframe and the most common club names.
-    
-    Parameters:
-    df (DataFrame): Input dataframe with a 'club' column.
-    
-    Returns:
-    DataFrame: Modified dataframe with an additional 'club_clean' column.
     """
+   Cleans the 'club' column in the dataframe and adds a new 'club_clean' column with cleaned names.
+   Prints the first 15 entries of the cleaned dataframe and the most common club names.
+   
+   Parameters:
+   df (DataFrame): Input dataframe with a 'club' column.
+   
+   Returns:
+   DataFrame: Modified dataframe with an additional 'club_clean' column.
+   """
     # Apply clean_club function to each entry in the 'club' column
     df["club_clean"] = df["club"].apply(lambda x: clean_club(x))
 
