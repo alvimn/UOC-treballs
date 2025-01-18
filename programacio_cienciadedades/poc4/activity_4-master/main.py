@@ -7,14 +7,14 @@ Created on Thu Jan 16 07:23:00 2025
 """
 
 # Import necessary modules
-import setup
+import datapull
 import anomize
 import minutagg
 import fix_club
 import team_analisis
 
 # Load the dataset using the datapull function from setup module
-df = setup.datapull()
+df = datapull.datapull()
 
 # Anonymize the 'biker' names in the dataset
 df = anomize.name_surname(df)

@@ -2,7 +2,7 @@
 ## Files
 main.py: The main script that coordinates the data processing by calling functions from the supporting modules.
 
-setup.py: Contains the datapull function to load and display the dataset.
+datapull.py: Contains the datapull function to load and display the dataset.
 
 anomize.py: Contains functions to anonymize data, specifically the name_surname function to anonymize names.
 
@@ -13,9 +13,9 @@ fix_club.py: Contains functions to clean and depurate club names in the dataset.
 team_analisis.py: Contains functions to analyze team data, focusing on specific teams.
 
 ## Description of Scripts
-main.py: Imports functions from setup.py, anomize.py, minutagg.py, fix_club.py, and team_analisis.py and executes them in sequence to process the dataset.
+main.py: Imports functions from datapull.py, anomize.py, minutagg.py, fix_club.py, and team_analisis.py and executes them in sequence to process the dataset.
 
-setup.py: Loads the dataset and prints its basic details.
+datapull.py: Loads the dataset and prints its basic details.
 
 anomize.py: Anonymizes the biker column in the dataset and filters out entries with a time value of "00:00:00".
 
