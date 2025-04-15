@@ -1,0 +1,241 @@
+---
+title: "PAC_1"
+output: html_document
+date: "2025-03-26"
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(kableExtra)
+```
+
+## Preparació del conjunt de dades
+
+### Carregar el fitxer de dades
+
+[Llegir el fitxer de dades sleephealth.csv.]{style="color: red;"}
+
+```{r data}
+data <- read.csv("~/Documentos/GitHub/UOC-treballs/analisis_estadistic/sleephealth.csv")
+```
+
+### Noms de les columnes
+
+[Mostreu els noms de les columnes del fitxer. A continuació canvieu els
+noms de les variables més llargues: Person.ID → ID, Sleep.Duration → SH,
+Quality.of.Sleep → SQ, Physical.Activity.Level → PHY, Stress Level →
+Stress, BMI.Category → BMI, Blood.Pressure → BP, Heart.Rate → HR,
+Daily.Steps → Steps, Sleep.Disorder → SD. Posteriorment us demanarem que
+canvieu el format de la columna BP ]{style="color: red;"}
+
+```{r }
+kable(colnames(data))
+```
+
+```{r}
+names(data)[names(data) == "Person.ID"] <- "ID"
+names(data)[names(data) == "Sleep.Duration"] <- "SH"
+names(data)[names(data) == "Quality.of.Sleep"] <- "SQ"
+names(data)[names(data) == "Physical.Activity.Level"] <- "PHY"
+names(data)[names(data) == "Stress.Level"] <- "Stress"
+names(data)[names(data) == "BMI.Category"] <- "BMI"
+names(data)[names(data) == "Blood.Pressure"] <- "BP"
+names(data)[names(data) == "Heart.Rate"] <- "HR"
+names(data)[names(data) == "Daily.Steps"] <- "Steps"
+names(data)[names(data) == "Sleep.Disorder"] <- "SD"
+kable(colnames(data))
+```
+
+## Normalització de formats en variables categòriques
+
+[Reviseu els formats de les variables categòriques. Corregiu les
+inconsistències si n’hi ha]{style="color: red;"} Per fer-ho primer
+mirarem les columnes que tenim i d'aquestes semblen categoriques
+"Gender", "Occupation", "BMI" i "SD"
+
+```{r echo=FALSE}
+kable(head(data))
+```
+
+Ara mirarem totes les opcions uniques que n'hi ha per veure si tenim
+algun problema
+
+```{r echo=FALSE}
+kable(unique(data["Gender"]))
+kable(unique(data["Occupation"]))
+kable(unique(data["BMI"]))
+kable(unique(data["SD"]))
+```
+
+Veiem que en BMI tenim normal i normal weight que es podrien unificar
+també podriem unificar en Occupation Sales Representative i SalesPerson
+ja que son el mateix
+
+```{r }
+data$BMI[data$BMI=="Normal Weight"] <- "Normal"
+data$Occupation[data$Occupation=="Sales Representative"] <- "Salesperson"
+kable(unique(data["Occupation"]))
+kable(unique(data["BMI"]))
+```
+
+Veiem que ara ja estan arreglats 
+## Inconsistències en variables quantitatives 
+[Reviseu els valors de les variables quantitatives i
+apliqueu les transformacions de format necessàries. Si hi ha valors
+buits, substituïu-los per NA.]{style="color: red;"} Veiem que tenim tres
+valors nulls a age als sustituim per NA
+
+```{r }
+kable(colSums(is.na(data)))
+data$Age[data$Age==NULL] <- NA
+```
+
+[Pel que fa a les variables pressió sistòlica i diastòlica, cal que les
+emmagatzemeu per separat en dues columnes de tipus numèric: BPsyst,
+BPdias.]{style="color: red;"}
+
+```{r }
+data[c("BPsyst", "BPdias")] <- do.call(rbind, strsplit(data$BP, "/"))
+data$BPsyst = as.numeric(data$BPsyst)
+data$BPdias = as.numeric(data$BPdias)
+data <- subset( data, select = -BP )
+kable(head(data))
+```
+
+## Valors invàlids o atípics 
+[En aquest apartat revisem els valors de les
+variables numèriques. En primer lloc, si hi ha valors invàlids en alguna
+variable, substituïu-los per NAs. A continuació, comproveu si hi ha
+valors atípics i si ho considereu oportú, també substituïu-los per NAs.
+Justifiqueu la vostra elecció. Realitzeu aquestes anàlisis en dos
+subapartats diferents. En l’apartat següent, es realitzarà la imputació
+dels NAs.]{style="color: red;"}
+
+### Valors invàlids 
+Sleep duration no l'esta agafant be si mirem en el
+tipus de variabnle diu que es una string i si mirem dos exemples veurem
+que utilitzen limitadors diferents pels decimals uns tenent punt i els
+altres coma per tant els unificarem
+
+```{r}
+kable(data[data$ID == 25 | data$ID == 1,])
+data$SH <- gsub(',', '.', data$SH)
+data$SH <- as.numeric(as.character(data$SH))
+kable(data[data$ID == 25 | data$ID == 1,])
+
+```
+
+### Valors atípics 
+Veiem que a la edat tenim una que no quadra, com es
+veu en el box plot. veiem clarament un valor atipic en la edad igual a
+999 clarament es un error ja que es una edat que no te sentit, per tant
+la substituirem
+
+```{r}
+boxplot(data$Age,main="Box plot", col="gray")
+data$Age[data$Age==999] <- NA
+```
+
+## Imputació 
+[Realitzeu la imputació de les variables que tinguin NAs,
+usant el mètode d’imputació basat en els k veïns més propers (k=3).
+Alhora d’imputar, només useu les variables numèriques (excepte ID). En
+acabar la imputació, mostreu en una taula els valors
+imputats.]{style="color: red;"} Com hem vist abans nomes tenim valors NA
+a edat per tant nomes editarem els valors de edat
+
+```{r}
+
+library(VIM)
+age_corrected <- kNN(data, k = 3)
+kable(data[is.na(data$Age),c("ID","Age")])
+kable(age_corrected[is.na(data$Age),c("ID","Age")])
+
+data$Age = age_corrected$Age
+
+```
+## Correlacions
+### Matriu de correlacions
+[Calculeu les correlacions entre les variables numèriques i mostreu una matriu amb el resultat. Interpreteu el
+resultat.]{style="color: red;"}
+Veiem que hi ha algunes correlacions molt clares com les dos tipus de presiò arterial de normal estan molt correlacionades el extrany i que esta lincat amb enfermetats es que no fosion semblants. També veiem que les hores de son i la qualitat del son estan correlacionades que obviament te molt sentit ja que es normal que dormir mes reporti més qualitat de son. També veiem que el estres esta inversament correlacionat amb les dos variables de son que té sentit ja la baixa qualitat de son esta lligada al estres. La activitat fisica esta lligada amb els passos diaris cosa que podem inferir que un exercici posible es caminar o correr.
+Les demes variables no tenen correlacions tant fortes.
+
+```{r}
+res <- cor(data[,c("Age", "SH", "SQ","PHY", "Stress",	"HR",	"Steps", "BPsyst", "BPdias")])
+kable(round(res, 2))
+
+```
+### Càlcul de correlacions 
+
+[Implementeu una funció pròpia que calculi la correlació de Pearson entre dues variables (sense usar llibreries
+d’R que ho calculin). Valideu que la vostra implementació és correcta comparant el resultat amb la funció
+cor d’R.]{style="color: red;"}
+Veiem que la correlacio es molt semblant a la que dona el metode corr per les variables de presio alterial
+```{r}
+x <- data$BPsyst
+y <- data$BPdias
+n <- length(x)
+x_barra <- sum(x)/n
+y_barra <- sum(y)/n
+
+(sum(x*y)-n*x_barra*y_barra)/(sqrt(sum(x*x)-n*x_barra*x_barra)*(sqrt(sum(y*y)-n*y_barra*y_barra)))
+```
+## Anàlisi descriptiva i visual
+[A continuació, realitzarem una anàlisi descriptiva d’algunes variables d’interès del conjunt de dades. Seguiu
+les indicacions dels subapartats següents.]{style="color: red;"}
+
+### Taula resum de tendència central i variabilitat d’HR segons SD (Sleep Disorder)
+[Mostreu en una taula les dades de tendència central (mitjana) i dispersió (desviació estàndard) de les variables
+SH, SQ, HR i Stress, agregades segons SD (Sleep Disorder). Per a poder desenvolupar aquest apartat, podeu
+usar funcions de la llibreria dplyr (summarise, group_by, reframe) i kable (per mostrar la taula)]{style="color: red;"}
+```{r}
+library(dplyr)
+result <- data %>%
+  group_by(SD) %>%
+  summarise(
+    SH_mean = mean(SH, na.rm = TRUE),
+    SH_sd = sd(SH, na.rm = TRUE),
+    SQ_mean = mean(SQ, na.rm = TRUE),
+    SQ_sd = sd(SQ, na.rm = TRUE),
+    HR_mean = mean(HR, na.rm = TRUE),
+    HR_sd = sd(HR, na.rm = TRUE),
+    Stress_mean = mean(Stress, na.rm = TRUE),
+    Stress_sd = sd(Stress, na.rm = TRUE)
+  )
+kable(result)
+
+```
+### 7.2 Gràfica de mitjanes segons HR i Occupation
+
+[A continuació, realitzeu un gràfic de línies que mostri el valor de la mitjana d’HR segons Occupation i segons
+cada tipus de SD. Per a organitzar la informació, mostreu en l’eix X el tipus de SD i cada línia del gràfic que
+correspongui a una ocupació diferent, usant colors diferents per cada ocupació. Ordeneu les categories en
+l’eix X per a millor claredat. Podeu usar la funció ggplot (de la llibreria ggplot2).]{style="color: red;"}
+```{r}
+library(ggplot2)
+summary_data <- data %>%
+  group_by(SD, Occupation) %>%
+  summarise(avg_HR = mean(HR, na.rm = TRUE)) %>%
+  arrange(SD)
+
+
+ggplot(summary_data, aes(x = SD, y = avg_HR, color = Occupation, group = Occupation)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Average HR by Occupation and Sleep Disorder",
+       x = "Sleep Disorder (SD)",
+       y = "Average HR") +
+  theme_minimal()
+
+```
+
+## Arxiu final
+[Un cop realitzat el preprocessament sobre el fitxer, deseu el resultat de les dades en un fitxer csv anomenat
+sleephealth_processed.csv.]{style="color: red;"}
+```{r}
+write.csv(data, "sleephealth_processed", row.names = FALSE)
+```
