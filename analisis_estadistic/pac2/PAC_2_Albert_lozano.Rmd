@@ -1,0 +1,431 @@
+---
+title: "PAC_2"
+output:
+  html_document: 
+    toc: true
+    theme: united
+    number_sections: true
+  pdf_document: default
+date: "2025-04-20"
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(kableExtra)
+```
+
+## Breu anàlisi visual
+
+A partir de les preguntes de recerca formulades, representeu visualment
+les variables a estudiar de manera que orientin les respostes a aquestes
+preguntes. És a dir, per cada pregunta de recerca, representeu un gràfic
+que ajudi a interpretar visualment la distribució de les variables per
+aquella pregunta. Escolliu el gràfic que sigui més apropiat en funció
+del vostre criteri. Estructureu aquesta secció en diferents subseccions,
+una per cada pregunta de recerca.
+
+[Llegir el fitxer de dades sleephealth.csv.]{style="color: red;"}
+
+```{r data}
+library(readxl)
+data <- read_excel("~/Documentos/GitHub/UOC-treballs/analisis_estadistic/pac2/sleephealth_processed.xlsx")
+kable(head(data))
+```
+
+### PR1: La mitjana d’hores de son de les persones a l’estudi és significativament inferior a 7.5 hores diàries?
+
+Farem un histograma de la distribucio ja que ens pot donar una idea de
+com esta distribuida i on esta la mitjana
+
+```{r}
+library(ggplot2)
+ggplot(data, aes(x=SH)) + geom_histogram(bins = 20,color="black",fill="white") +
+  labs(title = "Histogram of hours sleep",
+       x = "Hours Sleep",
+       y = "Count") +
+  theme_minimal()
+```
+
+Mirant el histograma la distribucio no sembla normal i encara que el
+valor mes comú esta prop del 7.5 sent mes o menys 7.3 i tenim valors al
+dos costats d'aquest i sembla que tenim una mica més en els valors més
+petits per tant sembla que la mitjana estara per sota, pero no ho podem
+asegurar fins fer el test estadistic
+
+### PR2: Existeixen diferències en la qualitat del son entre gèneres?
+
+Farem dos boxplot de la qualitat del son on separarem els dos generes
+per veure si hi ha diferencies.
+
+```{r}
+library(ggplot2)
+ggplot(data, aes(x=factor(SQ), fill=Gender)) +
+  geom_bar(stat="count", width=0.7, position=position_dodge()) +
+  labs(title = "Comparison of sleep quality by gender",
+       x = "Sleep Quality",
+       y = "Count") +
+  theme_minimal()
+
+```
+
+Sembla que les dones tenen una qualitat del son superior ja que tenen
+més valors més alts
+
+### PR3: La proporció de persones amb trastorn del son és més gran en les persones amb nivells alts d’estrès en comparació amb les que presenten nivells baixos d’estrès?
+
+Farem una taula de contingència on anotarem el nombre de casos observats
+per a cada combinació de les dues variables
+
+```{r}
+stres <- data$Stress>6
+SD <- data$SD=="Insomnia"| data$SD=="Sleep Apnea"
+
+result <- table(stres, SD)
+
+# Print the result
+print(result)
+
+
+```
+
+Sembla que es molt mes comu tenir desordres del son amb estres alt ja
+que si mirem la proporció sense estres alt esta al voltant del 10% i amb
+estres al voltant del 50%.
+
+### PR4: Hi ha una relació significativa entre la categoria de BMI (body mass index) i la presència de trastorns del son?
+
+Farem una taula de contingència on anotarem el nombre de casos observats
+per a cada combinació de les dues variables.
+
+```{r}
+BMI <- data$BMI
+SD <- data$SD
+
+result <- table(BMI, SD)
+
+# Print the result
+print(result)
+
+```
+
+Sembla que si que hi ha una dependència ja que els que estan a un BMI
+"Normal" tenen molt menys trastorns del son i per exemple la categoria
+"Obese" no te ningú sense trastorns del son.
+
+## Mitjana d’hores de son (PR1)
+
+En aquesta secció volem respondre la pregunta de recerca:
+
+*PR1: La mitjana d’hores de son de la població és significativament
+inferior a 7.5 hores diàries?*
+
+Per a donar-hi resposta, seguiu els passos que s’indiquen a continuació
+
+### Hipòtesis
+
+$$H_0:  \mu = 7.5 \newline H_1: \mu <7.5$$
+
+Per rebutjar la hipòtesis nul·la, caldrà observar evidència suficient
+que sigui notablement inferior que el valor de 7.5 hores.
+
+### Elecció del test
+
+El que volem es un test sobre la mitjana amb variància desconeguda
+unilateral. Ja que nomes ens interessa saber si es significativament més
+baixa i la variància es desconeguda.
+
+### Test R
+
+```{r}
+t.test( data$SH, alternative="less", mu=7.5)
+```
+
+### Desenvolupament
+
+```{r}
+my.ttest.L <- function(x, mu, alfa){
+  mean <- mean(x)
+  sd <- sd( x )
+  n <- length( x )
+  #Estadístic de contrast
+  tobs <- (mean-mu)/(sd/sqrt(n))
+  #Regió d’acceptació
+  tcrit.L <- qt( alfa, df=n-1)
+  #Càlcul del valor p
+  pvalue <- pt( tobs, lower.tail=TRUE, df=n-1 )
+  return ( data.frame( L=tcrit.L, U="INF", tobs, pvalue ) )
+}
+
+```
+
+### Resultats
+
+```{r}
+mu <- 7.5
+alfa <- 0.05
+my.ttest.L( data$SH, mu, alfa )
+```
+
+### Resposta a la pregunta d’investigació
+
+Segons els dos tests la hipòtesis es falsa i la mitjana es menor de 7.5
+amb un 95% de confiança en concret veiem que el p-value en els dos tests
+es menor que $10^{-15}$ per tant clarament la mitjana no és 7.5
+
+## Diferències en la qualitat del son segons gènere (PR2)
+
+En aquesta secció volem respondre la pregunta de recerca:
+
+*PR2: Existeixen diferències en la qualitat del son entre gèneres?*
+
+### Hipòtesis
+
+$$H_0:  \mu_1 =  \mu_2 \newline H_1:  \mu_1 \ne  \mu_2$$
+
+Per rebutjar la hipòtesis nul·la, caldrà observar evidència suficient
+que les dos mitjanes siguin diferents.
+
+### Elecció del test
+
+El primer que farem sera un test per mirar si les variàncies son iguals
+(test d'homoscedasticitat), ja que son desconegudes. En cas que les
+variàncies siguin iguals farem un test per mirar si les mitjanes son
+iguals suposant que les variàncies son iguals o diferents, depenent del
+resultat anterior.
+
+### Test R
+
+```{r}
+H <- data$SQ[ data$Gender=="Male" ]
+D <- data$SQ[ data$Gender=="Female" ]
+var.test(H, D)
+t.test(H,D,alternative="two.sided", var.equal=FALSE)
+```
+
+### Desenvolupament
+
+```{r}
+alfa <- 0.05
+H <- data$SQ[ data$Gender=="Male" ]
+D <- data$SQ[ data$Gender=="Female" ]
+mean1 <- mean(H) ; n1 <- length(H) ; s1 <- sd( H )
+mean2 <- mean(D) ; n2 <- length(D) ; s2 <- sd( D )
+
+c(mean1, mean2, s1, s2, n1, n2 )
+fobs<-s1^2 / s2^2
+fcritL <- qf( alfa/2, df1=n1-1, df2=n2-2 )
+fcritU <- qf( 1- alfa/2, df1=n1-1, df2=n2-2)
+pvalue <- min(pf( fobs, df1=n1-1, df2=n2-2, lower.tail=FALSE ), pf( fobs, df1=n1-1, df2=n2-2))*2
+c( fobs, fcritL, fcritU, pvalue)
+
+my.ttest <- function(x, y, alfa){
+  mean1 <- mean(x)
+  mean2 <- mean(y)
+  sd1 <- sd( x )
+  sd2 <- sd( y )
+  n1 <- length( x )
+  sd2 <- sd( y )
+  s <- sqrt(((n1-1)*s1**2+(n2-1)*s2**2)/(n1+n2-2))
+  gll <- ((s1**2)/n1+(s2**2)/n2)/((((s1**2)/n1)**2)/(n1-1)+(((s2**2)/n2)**2)/(n2-1))
+  #Estadístic de contrast
+  tobs <- (mean1-mean2) / (sqrt((s1**2)/n1 + (s2**2)/n2))
+  #Regió d’acceptació
+  tcritL <- qt( alfa/2, gll)
+  tcritU <- qt( 1-alfa/2, gll)
+  pvalue <-pt( abs(tobs), df=gll, lower.tail=FALSE)*2
+  return ( data.frame( L=tcritL, U=tcritU, tobs, pvalue) )
+}
+
+
+```
+
+### Resultats
+
+```{r}
+H <- data$SQ[ data$Gender=="Male" ]
+D <- data$SQ[ data$Gender=="Female" ]
+alfa <- 0.05
+my.ttest( H, D, alfa )
+```
+
+### Resposta a la pregunta d’investigació
+
+Veiem primer que el p-valor de el test d'igualtat de variança es molt
+petit per tant les variàncies no son iguals i despres mirant el test per
+mirar si les mitjanes no son iguals assumint que les variàncies son
+diferents el valor del p es menor que el nivell de significança per tant
+podem rebutjar la hipòtesi nul·la d'igualtat entre mitjanes de qualitat
+del son entre homes i dones.
+
+## L’estrès influeix en el trastorns del son? (PR3)
+
+En aquesta secció volem respondre la pregunta de recerca:
+
+*PR3: La proporció de persones amb trastorn del son és més gran en les
+persones amb nivells alts d’estrès en comparació amb les que presenten
+nivells baixos d’estrès?*
+
+### Hipòtesis
+
+$$H_0:  p_1 =  p_2 \newline H_1:  p_1 \ne  p_2$$
+
+Per rebutjar la hipòtesis nul·la, caldrà observar evidència suficient
+que la proporció de persones amb trastorns del son es diferent si el
+nivell d'estres es alt o no.
+
+### Elecció del test
+
+Farem un test sobre la diferència de dues proporcions, amb mostres grans
+
+### Test R
+
+```{r}
+ts <- data[ which(data$SD=="Insomnia"| data$SD=="Sleep Apnea"), ]
+sa <- data[ data$SD=="None", ]
+n1 <- length( ts$Stress )
+n2 <- length( sa$Stress )
+p1 <- sum(ts$Stress>6)/n1; p1
+p2 <- sum(sa$Stress>6)/n2; p2
+success<-c( p1*n1, p2*n2)
+nn<-c(n1,n2)
+prop.test(success, nn, alternative="two.sided", correct=FALSE)
+```
+
+### Desenvolupament
+
+```{r}
+
+
+my.ttestprop <- function(x1, x2, alfa){
+  n1 <- length( x1$Stress )
+  n2 <- length( x2$Stress )
+  p1 <- sum(x1$Stress>6)/n1
+  p2 <- sum(x2$Stress>6)/n2
+  p<-(n1*p1 + n2*p2) / (n1+n2)
+  #Estadístic de contrast
+  tobs <- (p1-p2)/( sqrt(p*(1-p)*(1/n1+1/n2)) )
+  #Regió d’acceptació
+  tcrit <- qnorm(alfa, lower.tail=FALSE)
+  pvalue <- pnorm(tobs, lower.tail=FALSE)
+
+
+  return ( data.frame( ZC=tcrit, tobs, pvalue) )
+}
+
+
+```
+
+### Resultats
+
+```{r}
+ts <- data[ which(data$SD=="Insomnia"| data$SD=="Sleep Apnea"), ]
+sa <- data[ data$SD=="None", ]
+alfa <- 0.05
+my.ttestprop( ts, sa, alfa )
+```
+
+### Resposta a la pregunta d’investigació
+
+Amb un nivell de confiança molt alt es pot rebutjar l'hipòtesis nul·la
+ja que el p valor es 6.523767e-15 per tant podem concloure que la
+proporció de població que te trastorns del son es més alta en gent amb
+estres.
+
+## BMI i trasntorns del son (PR4)
+
+En aquesta secció volem respondre la pregunta de recerca:
+
+*R4: Hi ha una relació significativa entre la categoria de BMI i la
+presència de trastorns del son?*
+
+### Hipòtesis
+
+-   $H_0:$ la categoria de BMI i la presencia de trastorns del son són
+    variables independents.
+
+-   $H_1:$ hi ha una relació entre les variables de categoria de BMI i
+    presencia de trastorns del son.
+
+Per rebutjar la hipòtesis nul·la, caldrà observar evidència suficient
+que les dues variables són idependents
+
+### Elecció del test
+
+Farem un test de dependència de dues variables
+
+### Test R
+
+```{r}
+BMI <- data$BMI
+SD <- data$SD
+
+result <- table(BMI, SD)
+chisq.test(result, correct=FALSE)
+```
+
+### Desenvolupament
+
+```{r}
+
+
+my.ttestinde <- function(x1, x2, alfa){
+  qobs <- 0
+  table <- addmargins(table(x1, x2))
+  n1 <- length(unique(x1))
+  n2 <- length(unique(x2)) 
+  #Estadístic de contrast
+  for(i in 1:n1){
+    for (j in 1:n2) {
+      e <- table[i,n1+1]*table[n2+1,j]/table[n1+1,n2+1]
+      qobs <- qobs+ (((table[i,j] - e)**2)/e)
+    }
+  }
+  #Regió d’acceptació
+  tcrit <- qchisq(alfa, df=4, lower.tail = FALSE)
+  pvalue <- pchisq(qobs, df=4, lower.tail = FALSE)
+
+
+  return ( data.frame( ZC=tcrit, qobs, pvalue) )
+}
+
+
+```
+
+### Resultats
+
+```{r}
+BMI <- data$BMI
+SD <- data$SD
+alfa <- 0.05
+my.ttestinde( BMI, SD, alfa )
+```
+
+### Resposta a la pregunta d’investigació
+
+Amb un nivell de confiança molt alt es pot rebutjar l'hipòtesis nul·la
+ja que el p valor es molt baix per tant podem concloure que les dos
+variables no son independents i estan fortament correlacionades.
+
+## Taula resum
+
+| Pregunta | Test | Valor p | Resposta |
+|-----------------|-------------------|-------------------|-----------------|
+| PR1 | Test sobre la mitjana amb variància desconeguda unilateral | 9.645142e-18 | Rebutgem hipòtesis nul·la en concret la mitjana es inferior a 7.5 hores |
+| PR2 | Test d'igualtat de mitjanes suposant variàncies diferents | 4.706875e-09 | Rebutgem hipòtesis nul·la en concret les mitjanes no coincideixen entre qualitat de son entre generes |
+| PR3 | Test sobre la diferència de dues proporcions, amb mostres grans | 6.523767e-15 | Rebutgem hipòtesis nul·la en concret la proporció de població que te trastorns del son es més alta en gent amb estres |
+| PR4 | Test de dependència de dues variables | 2.288055e-55 | Rebutgem hipòtesis nul·la en concret les dues variables no són independents |
+
+## Resum executiu
+
+Les conclusions que podem treure d'aquest resultat és que la mitjana
+d'hores de son en aquest grup és menor que 7 hores i mitja, cosa
+esperable tenint en compte que part del grup d'estudi pateix trastorns
+del son. També podem concloure que els dos gèneres tenen mitjanes
+diferents de qualitat del son. Addicionalment, veiem que una població
+amb estrès alt té una proporció més alta de trastorns del son i per
+últim veiem que el BMI està correlacionat amb la presència de trastorns
+del son, cosa que té sentit, ja que un dels factors de risc de les
+apnees de son és el sobrepès.
