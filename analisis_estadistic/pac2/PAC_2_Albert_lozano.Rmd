@@ -412,7 +412,7 @@ variables no son independents i estan fortament correlacionades.
 ## Taula resum
 
 | Pregunta | Test | Valor p | Resposta |
-|-----------------|-------------------|-------------------|-----------------|
+|----|----|----|----|
 | PR1 | Test sobre la mitjana amb variància desconeguda unilateral | 9.645142e-18 | Rebutgem hipòtesis nul·la en concret la mitjana es inferior a 7.5 hores |
 | PR2 | Test d'igualtat de mitjanes suposant variàncies diferents | 4.706875e-09 | Rebutgem hipòtesis nul·la en concret les mitjanes no coincideixen entre qualitat de son entre generes |
 | PR3 | Test sobre la diferència de dues proporcions, amb mostres grans | 6.523767e-15 | Rebutgem hipòtesis nul·la en concret la proporció de població que te trastorns del son es més alta en gent amb estres |

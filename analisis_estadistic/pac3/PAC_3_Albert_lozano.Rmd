@@ -1,0 +1,665 @@
+---
+title: "PAC_3"
+output:
+  html_document: 
+    toc: true
+    theme: united
+    number_sections: true
+  pdf_document: default
+date: "2025-05-13"
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(kableExtra)
+```
+
+## Regressió lineal
+
+### Estudi de correlació lineal
+
+Calculeu la correlació lineal entre totes les variables quantitatives de
+l’estudi. Mostreu la matriu de correlació i ordenar els valors de manera
+decreixent, és a dir del valor més alt de r, *coeficient de correlació
+lineal*, al més baix. Interpreteu
+
+Primer llegim el document i mostrem les primeres files
+
+```{r data}
+data <- read.csv("~/Documentos/GitHub/UOC-treballs/analisis_estadistic/pac3/Barcelona_Rent_Price_vf.csv", encoding="UTF-8")
+
+kable(head(data))
+```
+
+Ara generarem la taula de correlacions ordenant de manera decreixent
+
+```{r}
+res <- cor(data[,c("price", "rooms", "bathroom","square_meters")])
+order_price <- order(res[, "price"], decreasing = TRUE)
+res_ordered <- res[order_price, order_price]
+kable(round(res_ordered, 2))
+```
+
+```{r message=TRUE, warning=TRUE, paged.print=TRUE}
+n <- length( data$price )
+x_price_med <- sum(data$price)/n
+sx <- sum((data$price-x_price_med)**2)
+correl <- data.frame(var=c("Price"), value=c(1), stringsAsFactors=FALSE)
+for (i in c("rooms", "bathroom","square_meters")){
+  y_med <- sum(data[[i]])/n
+  sxy <- sum((data$price-x_price_med)*(data[[i]]-y_med))
+  
+  sy <- sum((data[[i]]-y_med)**2)
+  r <- sxy/sqrt((sx)*(sy))
+  correl <- rbind(correl, list(i,round(r,2)))
+}
+correl <- as.matrix(correl)
+ordered <- order(correl[, "value"], decreasing = TRUE)
+correl_orde <- correl[ordered,]
+kable(correl_orde)
+```
+
+He calculat el coeficient de correlació lineal amb la funció *cor* que
+inclou R i també amb les formules proposades a teoria, veiem que
+coincideixen, veiem que totes estan relacionades amb el preu i que la
+relació es que quan una creix el preu creix. Tant la relació de metres
+quadrats com la de banys són moderades, mentre la de habitacions es
+feble. Té sentit que totes estiguin relacionades, també veiem que entre
+elles estan relacionades pel resultat de la funció *cor.* Tot això te
+sentit ja que donades dos habitatges amb les mateixes característiques
+tenir més metres quadrats clarament encariria la propietat, veiem que
+amb banys es feble, cosa que també te sentit perquè tampoc es molt
+interessant tenir una casa amb 8 banys, encara que la diferencia entre 1
+i dos banys si que pot ser important pel rendint.
+
+### Estudi comparatiu entre barris de Barcelona
+
+Per a cada tipus d’habitatge, representeu gràficament la variació de
+preus segons el barri. Interpreteu. Posteriorment representeu en una
+taula la mitja i la mitjana dels preus del lloguer, segons tipus
+d’habitatge i barri.
+
+```{r}
+library(ggplot2)
+data$neighborhood <- iconv(data$neighborhood, from = "", to = "UTF-8", sub = "byte")
+#data$real_state <- enc2utf8(as.character(data$real_state))
+ggplot(data, aes(x=factor(neighborhood), y = price, fill=real_state)) +
+  geom_bar(stat="summary", fun='mean',width=0.7, position=position_dodge()) +
+  labs(title = "Average Property Price by Neighborhood and Real Estate Type",
+       x = "Neighborhood",
+       y = "Average Price") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+library(dplyr)
+data_sumary <- data%>%
+  group_by(neighborhood,real_state)%>%
+   summarise(
+    price_mean = mean(price, na.rm = TRUE),
+    price_median = median(price, na.rm = TRUE),
+    .groups = "drop"
+  )
+kable(data_sumary)
+```
+
+Veiem que el preus dels estudis són estables respecte els barris, això
+pot ser pel l'ús que se li pot donar en canvi els atics tenen molta
+variabilitat inclòs passant de ser una opció econòmica dintre del barri
+a ser la més cara. Això pot ser perquè en certs barris siguin molt més
+comuns o per que les vistes en la terrassa encareixin el pis. També
+veiem que tenim zones que es comporten similarment com Sant Andreu i
+Horta on la mitjana es similar. També veiem que la mitja i la mitjana
+són similars en general excepte en casos contats com els atics a Sant
+Mart això indica que hi ha uns atics molt cars que fan que la mitjana
+pugi molt però la mitja es quedi molt més baixa. També veiem que en
+general encara que similars la mitjana es més alta que la mitja. Això
+podria indicar que tots els barris tenen pisos molt cars i que no estan
+distribuïts en una normal amb centre la mitjana.
+
+### Generació dels conjunts d’entrenament i de test
+
+Ara separarem el conjunt de dades en dues parts: el conjunt
+d’entrenament (training) i el conjunt de prova (testing). En els
+següents apartats, ajustarem el model de regressió lineal amb el conjunt
+d’entrenament, i avaluarem la precisió amb el conjunt de prova.
+
+Es demana generar els conjunts de dades per a entrenar el model
+(training) i per a testar-lo (testing). Es pot fixar la grandària de la
+mostra d’entrenament a un 80% de l’original.
+
+```{r}
+smp_size <- floor(0.80 * nrow(data))
+
+## set the seed to make your partition reproducible
+set.seed(123)
+train_ind <- sample(seq_len(nrow(data)), size = smp_size)
+
+train <- data[train_ind, ]
+test <- data[-train_ind, ]
+
+```
+
+### Estimació del model de regressió lineal amb predictors quantitatius
+
+Estimeu per mínims quadrats ordinaris un model lineal que expliqui el
+preu del lloguer en funció de totes les variables emprades per a
+calcular la matriu de correlacions en l’apartat anterior.
+
+```{r}
+model <- lm(price ~ rooms + bathroom + square_meters, data = train )
+summary(model)
+```
+
+#### Comprovació de colinealitat
+
+Una vegada ajustat el model es demana comprovar la presència o no de
+colinealitat. A la vista dels resultats, exclouries alguna variable del
+model. Raona la teva resposta.
+
+```{r}
+res <- cor(data[,c("price", "rooms", "bathroom","square_meters")])
+order_price <- order(res[, "price"], decreasing = TRUE)
+res_ordered <- res[order_price, order_price]
+kable(round(res_ordered, 2))
+```
+
+Per fer-ho podem tornar a la taula anterior de correlacions de variables
+que hem calculat abans. Veiem que totes les variables estan
+correlacionades, veiem que metres quadrats es la que esta més
+correlacionada, amb més del 0,7 amb bathroom i mes de 0,6 amb rooms per
+tant crec que podriem prescindir d'aquesta variable i utilitzar room i
+bathroom que no estan tan correlacionades entre elles però que podrien
+explicar metres quadrats. Encara que el valor no es superior a 0.8 el
+que indicaria una colinealitat alta per tant hauriem de mirar si
+extreure aquesta variable millora el model.
+
+### Estimació del model de regressió lineal amb predictors quantitatius i qualitatius
+
+S’afegirà al model de l’apartat anterior les variables qualitatives
+real_state i neighborhood, així com les variables dicotòmiques lift i
+terrace. En el cas del factor neighborhood, es prendrà com a referència
+el barri de *Sarria-Sant Gervasi.*
+
+Una vegada aplicat el model i sobre la base dels resultats, decidiu
+quines de les variables explicatives proposades fins al moment han de
+quedar-se en el model de regressió lineal. Per a prendre aquesta decisió
+ha de considerar-se a més de la rellevància o no de les variables,
+l’existència o no de problemes de colinealitat comprovada en l’apartat
+anterior, així com el valor del coeficient de determinació ajustat.
+Interpreteu.
+
+*Nota: Generalment, valors d’un FIV superiors a 10 donen indicis d’un
+problema de multicolinealitat, si bé la seva magnitud depèn del model
+ajustat, però altres autors consideren valors per sobre de 4*
+
+```{r}
+model1 <- lm(price ~ rooms + square_meters + bathroom + factor(lift) + factor(terrace) + factor(real_state) + relevel(factor(neighborhood),ref = "Sarria-Sant Gervasi"), data = train )
+summary(model1)
+```
+
+```{r}
+model2 <- lm(price ~ rooms + bathroom + factor(lift) + factor(terrace) + factor(real_state) + relevel(factor(neighborhood),ref = "Sarria-Sant Gervasi"), data = train )
+summary(model2)
+```
+
+```{r}
+library(car)
+vif_values <- car::vif(model1)
+kable(vif_values)
+
+```
+
+Veiem que encara que estan correlacionades les variables amb meteres
+quadrats si mirem el coeficient de determinació ajustat al treure
+aquesta variable aquest decreix de 0.58 a 0.42 i si mirem el FIV es
+inferior a 10 i també inferior a 4 per tant no crec que sigui adient
+treure ninguna variable, es veritat que vam veure correlació però era no
+arribava al 0.8 per tant no era correlació forta. Tenint en compte això
+crec que ens podem quedar amb el model amb totes les variables. Però
+veiem que el p-valor de l'estadístic de Wald es superior a 0.05 en els
+barris de Gracia, per tant els convinarem.
+
+```{r}
+test$neighborhood[test$neighborhood %in% c("Sarria-Sant Gervasi", "Gracia")] <- "Sarria-Sant Gervasi"
+train$neighborhood[train$neighborhood %in% c("Sarria-Sant Gervasi", "Gracia")] <- "Sarria-Sant Gervasi"
+model1 <- lm(price ~ rooms + square_meters + bathroom + factor(lift) + factor(terrace) + factor(real_state) + relevel(factor(neighborhood),ref = "Sarria-Sant Gervasi"), data = train )
+summary(model1)
+```
+
+### Diagnosi del model
+
+Per a la diagnosi es tria el model final construit en l’apartat
+anterior. Es demana generar un histograma amb els residus ( valors
+observats menys els predits pel model) i posteriorment altres dos
+gràfics: un amb els valors ajustats enfront dels residus (que ens
+permetrà veure si la variància és constant) i el gràfic quantil- quantil
+que compara els residus del model amb els valors d’una variable que es
+distribueix normalment(QQ plot). Interpreteu els resultats.
+
+```{r}
+library(ggplot2)
+ggplot(data = train, aes(x = model1$residuals)) +
+    geom_histogram(fill = 'steelblue', color = 'black') +
+    labs(title = 'Histogram of Residuals', x = 'Residuals', y = 'Frequency')
+```
+
+```{r}
+
+qqnorm(model1$residuals)
+
+qqline(model1$residuals)
+```
+
+Clarament mirant els dos plots es veu que no es comporta com una normal,
+ja que tenim valors outliners molt forts sobretot els que son més grans.
+Això pot ser degut a que el habitage es més car que el que les seves
+característiques indicaria degut a factors com la zona o altres
+variables les quals no estan contemplades al model, ja que com vam veure
+teniem pisos que eren molt més cars que els del seu voltant ja que la
+mitjana era molt major a la mediana en alguns barris. També veiem que
+tenim una cua per la esquerra per sota de la linea, encara que menys
+pronunciada, això pot ser per lloguer vells que mantenen rentes antigues
+que estan per sota del mercat actual per tant estan per sota de
+l'esperat
+
+### Predicció del model
+
+Segons el model final, calculeu les prediccions del preu de lloguer d’un
+pis a Barcelona, utilitzant la base de dades de test. Representeu els
+valors predits front els valors observats. Avalueu la precisió del model
+mitjançant l’arrel quadrada de l’error quadràtic mitjà (RMSE).
+Interpreteu.
+
+```{r}
+predictions <- predict(model1, newdata = test)
+residuals <-  test$price - predictions
+ggplot(data = test, aes(x = residuals)) +
+    geom_histogram(fill = 'steelblue', color = 'black') +
+    labs(title = 'Histogram of Residuals', x = 'Residuals', y = 'Frequency')
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(data.frame(Actual = test$price, Residuals = residuals), aes(x = Actual, y = Residuals)) +
+  geom_point(color = "purple") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuals vs Actual", x = "Actual price", y = "Prediction - Price")
+
+```
+
+```{r}
+rmse <- sqrt(mean(residuals^2))
+print(paste("RMSE:", round(rmse, 4)))
+```
+
+Veiem un resultat similar on els preus alts li costa molt predir-los, i
+per una diferencia molt significativa tenit un RSME de 700 indicant que
+que aquest valors que se equivoca ho fa molt, per exemple podem veure
+que el valor mes gran que esta al voltant de 15000 € se equivoca al
+predir-lo per més de 8000 € amb diferencies tant grans en la part alta
+dels preus fan que el model no pugui predir aquest ouliners i tingui
+estadístiques molt dolentes encara que veiem que la majoria de punts si
+que estan millor predits.
+
+## Regressió logística
+
+### Preparació de les dades
+
+Es vol estudiar quins són els factors que més influeixen en el preu per
+metre quadrat de lloguer dels habitatges a la ciutat de Barcelona.
+
+Primer es crearà una nova variable anomenada **square_meters_price**.
+Aquesta nova variable està relacionada amb els valors de la variable
+price i square_meters. Posteriorment es convertirà a variable dicotòmica
+**square_meters_price_re**. Es recodificarà de la manera següent: “preu
+per metre quadrat inferior a 20 euros” pren el valor 0 i “preu superior
+o igual a 20” el valor 1. Per a evitar problemes de multicolinealitat,
+una vegada creada aquesta variable dicotòmica, no es tindran en compte
+els factors **price** i **squared_meters**, per a la creació dels
+models. De la mateixa forma, tampoc es tindrà en compte
+**square_meters_price**. Per al model de regressió logística, es prendrà
+com a variable dependent **square_meters_price_re**.
+
+De manera anàloga als models lineals, separarem el conjunt de dades en
+dues parts: el conjunt d’entrenament (training) i el conjunt de prova
+(testing). Ajustarem el model de regressió logística amb el conjunt
+d’entrenament, i avaluarem la precisió amb el conjunt de prova. Es pot
+fixar la grandària de la mostra d’entrenament a un 80% de l’original.
+
+```{r}
+data_rl <- data
+data_rl$square_meters_price <- data_rl$price/data_rl$square_meter
+data_rl <- data_rl%>% mutate(square_meters_price_re = ifelse(square_meters_price >= 20, 1, 0)) 
+smp_size <- floor(0.80 * nrow(data_rl))
+
+## set the seed to make your partition reproducible
+set.seed(123)
+train_ind <- sample(seq_len(nrow(data_rl)), size = smp_size)
+
+train_rl <- data_rl[train_ind, ]
+test_rl <- data_rl[-train_ind, ]
+
+```
+
+### Estimació del model de regressió logística amb el conjunt d’entrenament
+
+Prenent com a base, training, estimeu el model de regressió logística
+sent la variable dependent **squared_meters_price_re** i prenent la
+resta de variables de la base de dades training, com a factors
+explicatius, tenint en compte les consideracions esmentades, per a
+evitar problemes de multicolinealitat.
+
+Respecte a les variables **neighborhood** i **real_state**, es prendran
+com a valors de referència Ciutat Vella i flat. A la vista dels
+resultats, explica si eliminaries o no algun dels factors del model.
+
+```{r}
+
+modellr1 <- glm(square_meters_price_re ~ rooms + bathroom + factor(lift) + factor(terrace) + relevel(factor(real_state),ref = "flat") + relevel(factor(neighborhood),ref = "Sarria-Sant Gervasi"), data = train_rl ,family=binomial(link=logit))
+summary(modellr1)
+```
+
+En general tots els p valors associats al estadistic de Wald estan per
+sota de 0.05 excepte en el barri de Ciutat vella on te un p-value de 0.7
+per tant el que fare sera considerar que els dos barris son el mateix ja
+que no sembla estadisticament significatiu separar-los
+
+```{r}
+train_rl$neighborhood[train_rl$neighborhood %in% c("Sarria-Sant Gervasi", "Ciutat Vella")] <- "Sarria-Sant Gervasi"
+test_rl$neighborhood[test_rl$neighborhood %in% c("Sarria-Sant Gervasi", "Ciutat Vella")] <- "Sarria-Sant Gervasi"
+modellr1 <- glm(square_meters_price_re ~ rooms + bathroom + factor(lift) + factor(terrace) + relevel(factor(real_state),ref = "flat") + relevel(factor(neighborhood),ref = "Sarria-Sant Gervasi"), data = train_rl ,family=binomial(link=logit))
+summary(modellr1)
+
+```
+
+El AIC ha baixat per tant segons aquest indicador hem millorat el model
+
+### Càlcul de les OR (Odss-Ràtio)
+
+Calculeu les OR corresponents i interpreteu les que considereu més
+rellevants. Resumir quines de les variables poden considerar-se factors
+de risc o protecció.
+
+```{r}
+kable(exp(coef(modellr1)))
+
+```
+
+Mirant les OR identifiquem com a factors de protecció tenir habitacions
+i pertanye a certs barris (Gracia, Horta- Guinardo, Les Corts, Nou
+Barris, Sant Andreu, Sants-Montjuic) tots els demes son factor de risc
+
+### Matriu de confusió
+
+A continuació analitzeu la matriu de confusió i les mesures de
+sensibilitat i especificitat. S’assumirà que la predicció del model és
+1, si la probabilitat del model de regressió logística és superior o
+igual a 0.5 i 0 en cas contrari. Calculeu la predicció del model contra
+el conjunt de prova (testing).
+
+```{r}
+#install.packages("caret")
+library(caret)
+pred_probs <- predict(modellr1, newdata = test_rl, type = "response")
+pred <- ifelse(pred_probs >= 0.5, 1, 0)
+actual <- as.numeric(test_rl$square_meters_price_re)
+pred_factor <-factor(pred, levels = c(0, 1))
+actual_factor <- factor(actual, levels = c(0, 1))
+
+confusionMatrix(pred_factor, actual_factor)
+```
+
+Tenim una acurracy bastant bona al voltant del 80% però la nostra
+especificitat es bastant dolenta, això pot ser pel poc balanç a les
+nostres dades on tenin 1456 positius i 4903 negatius a train. Aquest
+desvalanç a les dades de train pot fer que acabi predient millor la
+classe més gran, en aquest cas la negativa, per tant no es d'estranyar
+aquest comportament que veiem a la matriu de confusió.
+
+### Predicció
+
+Identifiqueu els habitatges més cars, és a dir aquelles la probabilitat
+de les quals d’estar classificades amb el valor “1”, sigui superior al
+50%, segons el model de prediccions contra el conjunt de prova
+(testing). Posteriorment mostreu en una taula el barri i tipus
+d’habitatge, al qual pertanyen.
+
+```{r}
+library(dplyr)
+
+
+test_rl2 <- data_rl[-train_ind, ]
+df2 <-  test_rl2 %>%
+  mutate(pred_prob = predict(modellr1, newdata = test_rl, type = "response")) %>%
+  filter(pred_prob > 0.5) %>% group_by(neighborhood, real_state) %>% 
+  dplyr::summarise(total_count=n(),.groups = 'drop') %>% 
+  as.data.frame()
+kable(df2)
+```
+
+Veiem que tenim Barris on el preu per metre quadrat es alt en tots els
+tipus d'habitatge i el nombre es molt alt per exemple ciutat vella o
+eixaple el que fa pensar que son barris on el preu per metre quadrat es
+alt en general en canvi tenim barris on es estrany trobar-ho. Per tant
+sembla que el model ha pogut inferir quins barris son els que tenen un
+preu per metre quadrat elevat
+
+### Bondat de l’ajust i corba ROC
+
+Avalueu l’eficàcia del model segons el test Chi-quadrat. En aquest cas
+el valor de l’estadístic Chi-quadrat observat és igual a la diferència
+de devianzas (nul·la-residual). Calculeu la probabilitat associada a
+l’estadístic del contrast utilitzant la funció **pchisq**.
+
+Una vegada avaluada l’eficàcia, dibuixeu la corba ROC i calcular l’àrea
+sota la corba. Discutiu el resultat
+
+```{r}
+print(sum(residuals(modellr1,type="pearson")^2))
+print(1-pchisq(sum(residuals(modellr1,type="pearson")^2),1))
+```
+
+```{r}
+library(pROC)
+prob <- predict(modellr1, newdata = test_rl, type = "response")
+r <- roc(test_rl$square_meters_price_re,prob, data=test_rl)
+## Setting levels: control = 0, case = 1
+## Setting direction: controls < cases
+plot (r)
+print(auc(r))
+```
+
+Veiem que Chi-quadrat té la mateixa distribució asimptòtica que la de la
+diferència de les devianze del model, per tant el model es bo.
+
+Mirant l'àrea sota la corba veiem que es de 0.82 per tant el model
+discrimina de forma excel·lent. Clarament això es veu on la nostra corba
+esta molt per sobre que la recta entre 0 i 1.
+
+### Model de regressió logística multinomial
+
+Es crearà un model de regressió logística multinomial, per a classificar
+el tipus d’habitatges. Per a això es prendrà com a variable dependent
+real_state i les variables explicatives price, rooms, bathroom i
+square_meters. Analitzeu la precisió del model, comparant la predicció
+del model contra el conjunt de prova (testing). Interpreteu.
+
+```{r}
+library(nnet)
+data_mn <- data
+smp_size <- floor(0.80 * nrow(data_mn))
+
+## set the seed to make your partition reproducible
+set.seed(123)
+train_ind <- sample(seq_len(nrow(data_mn)), size = smp_size)
+
+train_mn <- data_mn[train_ind, ]
+test_mn <- data_mn[-train_ind, ]
+modellmn <- multinom(real_state ~ price + rooms + bathroom + square_meters, data=train_mn)
+summary(modellmn)
+pred <- predict(modellmn, newdata = test_mn)
+actual_class <- factor(test_mn$real_state)
+pred_class <-factor(pred, levels = levels(actual_class))
+
+confusionMatrix(pred_class, actual_class)
+```
+
+El model te problemes per diferencia certes classes degut al imbalanç de
+les dades ja que la majoria son pisos es molt complicat que pugui
+entendre les altres classes, ja que totes les demès classes sumades no
+representen ni un terç de les que tenim en pis, en concret tenim 5218
+pisos i 1141 dels demès. Aquest biaix cap els pisos fa que el nostre
+model predictiu no pugui generalitzar adequadament, ja que un model que
+només digues pis, tindria una accuracy del 82%. Tenint en compte això no
+es estrany veure perquè li costa generalitzar.
+
+## Resum executiu. Conclusions de l’anàlisi
+
+Resumiu les conclusions de l’estudi en una taula, indicant les respostes
+a les preguntes de recerca plantejades. Cada fila de la taula, es
+correspondrà a un apartat. S’haurà d’indicar de manera concisa, la
+pregunta, els resultats estadístics i breu conclusió.
+
++----------------------------------+----------------------------------+
+| Pregunta                         | Resposta                         |
++==================================+==================================+
+| 1.1 Estudi de correlació lineal  | Veiem que el que esta més        |
+|                                  | correlacionat amb el preu es els |
+|                                  | metres quadrats amb 0.69 i el    |
+|                                  | que menys son el numero de       |
+|                                  | habitacions amb 0.34. Per tant   |
+|                                  | tenir més metres quadrats es un  |
+|                                  | indicador de que el preu serà    |
+|                                  | alt amb molt més pes que les     |
+|                                  | habitacions.                     |
++----------------------------------+----------------------------------+
+| 1.2 Estudi comparatiu entre      | Veiem com cert baries tenen un   |
+| barris de Barcelona              | preu mitja molt més alt que      |
+|                                  | altres, i alguns on la mitjana i |
+|                                  | la mediana son molt diferents    |
+|                                  | indicant que tenim outliners que |
+|                                  | fan pujar molt la mitjana però   |
+|                                  | no afecten a la mediana          |
+|                                  |                                  |
+|                                  | Exemple: Sant Mart attic         |
++----------------------------------+----------------------------------+
+| 1.3 Generació dels conjunts      | Separem entre test i train amb   |
+| d’entrenament i de test          | un 80%                           |
++----------------------------------+----------------------------------+
+| 1.4 Estimació del model de       | Utlilitzem la funció lm per      |
+| regressió lineal amb predictors  | generar un model lineal amb      |
+| quantitatius                     | totes les variables              |
+|                                  | quantitatives.                   |
+| 1.4.1 Comprovació de             |                                  |
+| colinealitat                     | Veiem que tenim una colinealitat |
+|                                  | alta entre metres quadrats i     |
+|                                  | lavabos, però no suficient com   |
+|                                  | per descartar la variable sense  |
+|                                  | fer més comprovacions            |
++----------------------------------+----------------------------------+
+| 1.5 Estimació del model de       | Afegim també les variables       |
+| regressió lineal amb predictors  | qualitatives, i despres de       |
+| quantitatius i qualitatius       | comprovar el valor de VIF podem  |
+|                                  | concloure que no fa falta treure |
+|                                  | els m2 per colinealitat però     |
+|                                  | veiem que tenim barris que per   |
+|                                  | el estimador de Wald podem       |
+|                                  | combinar                         |
++----------------------------------+----------------------------------+
+| 1.6 Diagnosi del model           | Veiem que el model no predeix bé |
+|                                  | en els valors extrems sobre tot  |
+|                                  | en la part alta, això pot ser    |
+|                                  | degut a la presencia de          |
+|                                  | outliners que fan que els        |
+|                                  | estrems siguin dificils de       |
+|                                  | predir.                          |
++----------------------------------+----------------------------------+
+| 1.7 Predicció del model          | Veiem que el RSME es bastant alt |
+|                                  | pero també veiem en el segon     |
+|                                  | plot com la majoria de valors    |
+|                                  | estan agrupats al voltant del    |
+|                                  | zero i son similars en preu però |
+|                                  | tenim outliners on el preu es    |
+|                                  | molt alt i li costa més          |
+|                                  | predir-los tenint una diferencia |
+|                                  | molt gran amb el valor predit    |
++----------------------------------+----------------------------------+
+| 2 Regressió logística            | Generem les variables noves per  |
+|                                  | tal de tenir una variable        |
+| 2.1 Preparació de les dades      | dicotòmica que predir            |
+|                                  |                                  |
+|                                  | Desprès separem entre test i     |
+|                                  | train                            |
++----------------------------------+----------------------------------+
+| 2.2 Estimació del model de       | Estimem amb totes les variables  |
+| regressió logística amb el       | i veiem que el p-valor de        |
+| conjunt d’entrenament            | l'estimador de Wald te un valor  |
+|                                  | de 0.7 en el barri de Ciutat     |
+|                                  | Vella per tant el juntem amb     |
+|                                  | Sarria-Sant Gervasi              |
+|                                  |                                  |
+|                                  | Veiem com el AIC baixa al fer    |
+|                                  | això un indicador que el model a |
+|                                  | millorat                         |
++----------------------------------+----------------------------------+
+| 2.3 Càlcul de les OR             | Podem veure quins son factors de |
+| (Odss-Ràtio)                     | risc i quins de predicció. El    |
+|                                  | factor de predicció més          |
+|                                  | significatiu es tenir            |
+|                                  | l'habitatge a Nou Barris i el    |
+|                                  | factor de risc més significatiu  |
+|                                  | es que sigui un pis              |
++----------------------------------+----------------------------------+
+| 2.4 Matriu de confusió           | A la matriu de confusió podem    |
+|                                  | veure com prediu millor els      |
+|                                  | negatius que els positus.        |
+|                                  |                                  |
+|                                  | Això es perquè el dataset té     |
+|                                  | molts mes negatius que positius, |
+|                                  | tenint un desbalanç a les        |
+|                                  | classes que predir el que        |
+|                                  | generara problemes a la          |
+|                                  | predicció.                       |
++----------------------------------+----------------------------------+
+| 2.5 Predicció                    | Veiem que Ciutat Vella i         |
+|                                  | Eixample són barris amb una gran |
+|                                  | quantitat de habitatges cars i   |
+|                                  | de totes les categories, en      |
+|                                  | canvi les corts te només         |
+|                                  | apartaments on els metres        |
+|                                  | quadrats son cars i pocs això    |
+|                                  | ens pot fer pensar que el preu   |
+|                                  | per metre quadrat del sol es     |
+|                                  | diferent a barris o que tenim    |
+|                                  | menys quantitat de               |
+|                                  | disponibilitat a certs barris    |
++----------------------------------+----------------------------------+
+| 2.6 Bondat de l’ajust i corba    | Veiem que el model prediu, ja    |
+| ROC                              | que la AUC es superior a 0.5 en  |
+|                                  | concret es superior a 0.8 lo que |
+|                                  | indica que té una bona capacitat |
+|                                  | de predir inclusive amb les      |
+|                                  | consideracions anteriors         |
++----------------------------------+----------------------------------+
+| 2.7 Model de regressió logística | Veiem com tenim un problema      |
+| multinomial                      | similar a abans tenim un         |
+|                                  | desajust a les classes per tant  |
+|                                  | li costa predir les classes amb  |
+|                                  | menys exemples ja que el dataset |
+|                                  | no esta balancejat, iclus així   |
+|                                  | tenim una accuracy elevada, per  |
+|                                  | sobre del 80 però es molt mes    |
+|                                  | baixa en altres classes, per     |
+|                                  | millorar el model hauriem de     |
+|                                  | intentar igualar el tamany de    |
+|                                  | les classes ja sigui limitant    |
+|                                  | fins que siguin del mateix       |
+|                                  | tamany o generant dades          |
+|                                  | sitetiques                       |
++----------------------------------+----------------------------------+

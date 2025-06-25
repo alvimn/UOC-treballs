@@ -1,0 +1,714 @@
+---
+title: "PAC_4"
+output:
+  html_document: 
+    toc: true
+    theme: united
+    number_sections: true
+  pdf_document: default
+date: "2025-06-03"
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(kableExtra)
+```
+
+## Preprocessament
+
+### Variables value_eur i club_name
+
+Carregueu el fitxer de dades “female_play_net.csv”. Consulteu els tipus
+de dades de la variable value_eur i si és necessari, apliqueu les
+transformacions apropiades. Esbrineu possibles inconsistències en els
+valors de value_eur. En cas que existeixin inconsistències,
+corregiu-les. **Nota**: Si els valors de **value_eur** estan en lliures
+s’han de passar a euros. Considereu la següent taxa de canvi (1EU R = 0,
+85£).
+
+Elimineu la lletra W i últim espai en blanc del nom de l’equip de
+football **club_name**.
+
+Primer llegim el csv i mostrem, les primeres files i columnes ja que si
+no la taula seria molt gran
+
+```{r data}
+data <- read.csv("~/Documentos/GitHub/UOC-treballs/analisis_estadistic/pac4/female_play_net.csv", encoding="UTF-8")
+
+kable(head(data[,1:5]))
+```
+
+Ara mirem els valors de la columna **value_eur** i veiem que es
+"character" quan hauria de ser numèric, això es degut a que tenim £ en
+alguns valors
+
+```{r}
+print(class(data$value_eur))
+data$value_eur[4]
+
+library(dplyr)
+library(stringr)
+data <- data  %>% 
+  mutate(value_eur = ifelse(str_detect(value_eur,"£"), 0.85*as.numeric(substring(value_eur,2)),as.numeric(value_eur) ))
+
+data$value_eur[4]
+print(class(data$value_eur))
+```
+
+Ara eliminarem el w i el espai en blanc al final **club_name**
+
+```{r}
+data$club_name <- gsub(" W","",as.character(data$club_name ))
+kable(head(data$club_name, 5))
+```
+
+### Valors absents
+
+En aquest apartat, realitzarem tractament per a valors absents.
+Adoptarem la següent estratègia:
+
+-   Seleccionar únicament les observacions per a les quals la variable
+    league\_ name no és un valor absent. Denominar al conjunt de dades
+    ffemale_full.
+
+-   Comproveu quantes observacions tenen valors absents i reflexioneu
+    breument sobre com de preocupant és el problema de valors absents en
+    aquestes dades.
+
+-   En cas de valors absents de la variable value\_ eur en el conjunt de
+    dades ffemale\_ full, realitzeu imputació considerant la mediana de
+    la variable value\_ eur entre les jugadores del mateix equip al qual
+    pertanyi l’observació amb valor absent.
+
+-   Elimineu \_eur en el nom de les variables del conjunt de dades
+    ffemale_full
+
+\
+
+```{r}
+ffemale_full <- data[data$league_name != "",]
+nrow(data)
+nrow(ffemale_full)
+```
+
+Veiem que hem passat de 5035 entrades a 2245 perdent mes de la meitat en
+fer això també veiem que tots els que treiem no tenen valors a la
+columna value_eur wage o club_name, sembla que es un error generalitzat
+per a molts valors, indicant que la font de dades te molts errors. Ara
+mirarem d'aquest subset quants tenen value_eur null i aplicarem la
+mediana del equip
+
+```{r}
+nrow(ffemale_full[is.na(ffemale_full$value_eur),])
+library(dplyr)
+
+ffemale_full <- ffemale_full %>%
+  group_by(club_team_id) %>%
+  mutate(
+    value_eur = ifelse(is.na(value_eur), median(value_eur, na.rm = TRUE), value_eur)
+  ) %>%
+  ungroup()
+nrow(ffemale_full[is.na(ffemale_full$value_eur),])
+nrow(ffemale_full)
+
+
+```
+
+Veiem com ja no tenim valors amb aquestes característiques, ara canviem
+el nom a les columnes
+
+```{r}
+colnames(ffemale_full) <-  sub("_eur", "", colnames(ffemale_full))
+colnames(ffemale_full)[12]
+```
+
+## Estadística inferencial
+
+### Contrast d’hipòtesi per a la diferència de mitjanes
+
+Podem acceptar que **les jugadores que juguen en posicions d’atac tenen
+un major valor de mercat que la resta de jugadores?** Responeu a la
+pregunta utilitzant un nivell de confiança del 95%.
+
+**Nota**: Com a jugadores d’atac, s’han de considerar aquelles que
+juguen en les posicions “ST”, “CF”, “RW”, “LW”, “RWB” o “LWB”. S’han de
+realitzar els càlculs manualment. No es poden usar funcions de R que
+calculin directament el contrast com a t.test o similar. Si que es poden
+usar funcions com mean, sd, qnorm, pnorm, qt i pt.
+
+Seguiu els passos que es detallen a continuació
+
+#### Escriviu la hipòtesi nul·la i l’alternativa
+
+Hipotesis
+
+$$H_0:  \mu_1 =  \mu_2 \newline H_1:  \mu_1 \ne  \mu_2$$
+
+Per rebutjar la hipòtesis nul·la, caldrà observar evidència suficient
+que la mitjana de les jugadores en posicions d'atac tenen un sou més alt
+que les altres.
+
+#### Justificació del test a aplicar
+
+El primer que farem sera un test per mirar si les variàncies son iguals
+(test d'homoscedasticitat), ja que son desconegudes. En cas que les
+variàncies siguin iguals farem un test per mirar si les mitjanes son
+iguals suposant que les variàncies son iguals o diferents, depenent del
+resultat anterior.
+
+#### Càlculs
+
+Abans de fer els calcúls primer prepararem el dataset generant una nova
+variable que serà si es atacant o no i nomès amb les variables que ens
+interessen
+
+```{r}
+testdataset <- ffemale_full[c("value","player_positions")]
+keywords <- c("ST", "CF", "RW", "LW", "RWB", "LWB")
+pattern <- paste(keywords, collapse = "|")
+testdataset <- testdataset %>% mutate(simple_pos = ifelse(str_detect(player_positions, pattern), "atac", "no_atac"))
+kable(head(testdataset))
+```
+
+Ara ja tenim les dades així que començarem el test
+
+```{r}
+alfa <- 0.05
+A <- testdataset$value[ testdataset$simple_pos=="atac" ]
+D <- testdataset$value[ testdataset$simple_pos=="no_atac" ]
+mean1 <- mean(A) ; n1 <- length(A) ; s1 <- sd( A )
+mean2 <- mean(D) ; n2 <- length(D) ; s2 <- sd( D )
+
+c(mean1, mean2, s1, s2, n1, n2 )
+fobs<-s1^2 / s2^2
+fcritL <- qf( alfa/2, df1=n1-1, df2=n2-2 )
+fcritU <- qf( 1- alfa/2, df1=n1-1, df2=n2-2)
+pvalue <- min(pf( fobs, df1=n1-1, df2=n2-2, lower.tail=FALSE ), pf( fobs, df1=n1-1, df2=n2-2))*2
+c( fobs, fcritL, fcritU, pvalue)
+
+
+```
+
+Veiem primer que el p-valor de el test d'igualtat de variança es molt
+petit per tant les variàncies no son iguals, per tant farem el test de
+igualtat de mitjanes assumint que les variàncies són diferents
+
+```{r}
+my.ttest <- function(x, y, alfa = 0.05) {
+  mean1 <- mean(x)
+  mean2 <- mean(y)
+  s1 <- sd(x)
+  s2 <- sd(y)
+  n1 <- length(x)
+  n2 <- length(y)
+
+  # Estadístic de contrast (t de Welch)
+  tobs <- (mean1 - mean2) / sqrt((s1^2)/n1 + (s2^2)/n2)
+
+  # Graus de llibertat (Welch-Satterthwaite)
+  gll <- ((s1^2/n1 + s2^2/n2)^2) /
+         (((s1^2/n1)^2)/(n1 - 1) + ((s2^2/n2)^2)/(n2 - 1))
+
+  # Valors crítics (dos cues)
+  tcritL <- qt(alfa/2, df = gll)
+  tcritU <- qt(1 - alfa/2, df = gll)
+
+  # p-valor (test bilateral)
+  pvalue <- pt(abs(tobs), df = gll, lower.tail = FALSE) * 2
+
+  return(data.frame(L = tcritL, U = tcritU, tobs = tobs, pvalue = pvalue))
+}
+alfa <- 0.05
+A <- testdataset$value[ testdataset$simple_pos=="atac" ]
+D <- testdataset$value[ testdataset$simple_pos=="no_atac" ]
+my.ttest( A, D, alfa )
+```
+
+#### Interpretació del test
+
+El p-valor esta per sota de 0.05 per tant podem rebutjar hipotiposis
+nul·la per tant podem concloure que les mitjanes no són iguals i veient
+on esta el tobs podem concloure que les jugadores atacants tenen sous
+més alts de mitjana que les que no.
+
+## Model de regressió
+
+Volem investigar quines variables expliquen el valor de mercat de les
+jugadores. Estimeu un model de regressió lineal múltiple que tingui com
+a variables explicatives: overall, potential, age, wage i
+release_clause.
+
+### Escala de variable value
+
+En aquest apartat volem determinar si la variable dependent value
+l’analitzem en escala original o escala logarítmica.
+
+Realitzeu un gràfic de la funció de densitat de la variable **value** i
+un gràfic quantil–quantil (qqplot) per a la distribució normal. A partir
+de mètodes visuals podem assumir que la variable segueix una distribució
+normal? Justifiqueu la resposta.
+
+Realitzar els mateixos passos amb la variable a escala logarítmica.
+Podem considerar ara que la variable transformada segueix una
+distribució normal?
+
+Primer generarem un dataset amb les columnes necessàries amb el que
+treballarem en aquest apartat per desprès fer la funció de densitat i el
+boxplot
+
+```{r}
+regdataset <- ffemale_full[c("value", "overall", "potential", "age", "wage", "release_clause")]
+kable(head(regdataset))
+
+```
+
+```{r}
+library(ggplot2)
+# Suposem que tens un dataframe anomenat df amb la columna value
+ggplot(regdataset, aes(x = value)) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  labs(title = "Funció de densitat de 'value'", x = "value", y = "densitat") +
+  theme_minimal()
+
+```
+
+```{r}
+ggplot(regdataset, aes(sample = value)) +
+  stat_qq() +
+  stat_qq_line(color = "red") +
+  labs(title = "QQ plot de 'value'", x = "Quantils teòrics", y = "Quantils de la mostra") +
+  theme_minimal()
+```
+
+Veiem que clarament no segueix una distribució normal ja que tenim una
+acumulació en els valors petits i desprès veiem que tenim una dispersió
+molt gran en els valors més gran. La idea de utilitzar la funció
+logarítmica sembla prometedora ja que creix més ràpid al principi per
+desprès creixer més lentament per tant podria normalitzar les dades.
+
+```{r}
+ggplot(regdataset, aes(x = log(value))) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  labs(title = "Funció de densitat de 'value'", x = "value", y = "densitat") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(regdataset, aes(sample = log(value))) +
+  stat_qq() +
+  stat_qq_line(color = "red") +
+  labs(title = "QQ plot de 'value'", x = "Quantils teòrics", y = "Quantils de la mostra") +
+  theme_minimal()
+```
+
+Veiem que tenim una funció de densitat més semblant a una normal
+centrada al 15 i els quantils de la mostra també estan per sobre de la
+recta teòrica en la majoria de valors, per tant sembla que aplicar el
+logaritme es un bon mètode per normalitzar les dades, per tant ara
+alterarem el dataset per normalitzar els valors també tenim alguns
+valors nulls en **release_clause** així que els eliminarem
+
+```{r}
+regdataset$lvalue <- log(regdataset$value)
+regdataset <- regdataset[!is.na(regdataset$release_clause),]
+```
+
+### Regressió lineal múltiple
+
+Ajustar el model de regressió per a la variable dependent **value** en
+escala logarítmica. Denomineu a la variable depenent **lvalue**.
+
+Interpreteu el model lineal ajustat. Com és la qualitat de l’ajust?
+Expliqueu breument la contribució de les variables explicatives en el
+model.
+
+```{r}
+smp_size <- floor(0.80 * nrow(regdataset))
+
+## set the seed to make your partition reproducible
+set.seed(123)
+train_ind <- sample(seq_len(nrow(regdataset)), size = smp_size)
+
+train <- regdataset[train_ind, ]
+test <- regdataset[-train_ind, ]
+
+model1 <- lm(lvalue ~ overall + potential + age + wage + release_clause, data = train )
+summary(model1)
+```
+
+```{r}
+predictions <- predict(model1, newdata = test)
+residuals <-  test$lvalue - predictions
+ggplot(data = test, aes(x = residuals)) +
+    geom_histogram(fill = 'steelblue', color = 'black') +
+    labs(title = 'Histogram of Residuals', x = 'Residuals', y = 'Frequency')
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(data.frame(Actual = test$lvalue, Residuals = residuals), aes(x = Actual, y = Residuals)) +
+  geom_point(color = "purple") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuals vs Actual", x = "Actual price", y = "Prediction - Price")
+```
+
+```{r}
+
+rmse <- sqrt(mean(residuals^2))
+print(paste("RMSE:", round(rmse, 4)))
+```
+
+Veiem que R² es 0.94 això indica que el 94% de la variabilitat en
+**lvalue** (logaritme del valor del jugador) es pot explicar amb les
+variables **overall**, **potential**, **age**, **wage** i
+**release_clause**.
+
+La major part de les variables tenen una contribució estadísticament
+significativa. Les més rellevants són **overall**, **age**, i en menor
+mesura **potential** i **wage**. La variable **release_clause** no té
+efecte significatiu i es podria considerar prescindible.
+
+### Multicolinealitat
+
+Analitzeu possibles problemes de multicolinealitat (alta correlació
+entre variables explicatives) mitjançant la interpretació de la matriu
+de correlacions i del factor d’inflació de la variància (vif). Es pot
+utilitzar la funció **vif** de la llibreria **car**.
+
+```{r}
+res <- cor(regdataset[,c( "overall", "potential", "age", "wage", "release_clause")])
+kable(round(res, 2))
+```
+
+```{r}
+library(car)
+vif_values <- car::vif(model1)
+kable(vif_values)
+```
+
+Tenim variables molt correlacionades com per exemple **wage** i
+**release_clause** amb una correlació de 0.81, en general una correlacio
+més alta de 0.7 pot ser considerada alta, i tenim més exemples
+**overall** amb **wage** (0.73) i amb **release_clause** (0.72), i
+**potential** i **release_clause** (0.70).
+
+Respecte al test vif veiem que overall(8.66) i **potential** (5.48)
+presenten multicolinealitat considerable.
+
+Tenint en compte això tenim una multicolinealitat moderada on els
+parells més problemàtics són:
+
+**overall** amb **wage** / **release_clause**
+
+**wage** amb **release_clause**
+
+El VIF nomes fa que confirmar la colinealitat, especialment per
+**overall**
+
+## ANOVA unifactorial
+
+A continuació es realitzarà una anàlisi de variància, on es desitja
+comparar el valor de mercat de les jugadores entre les principals
+lligues.
+
+L’anàlisi de variància consisteix a avaluar si la variabilitat d’una
+variable dependent pot explicar-se a partir d’una o diverses variables
+independents, denominades factors.
+
+En el supòsit que ens ocupa, ens interessa avaluar si la variabilitat de
+la variable lvalue pot explicar-se pel tipus de lliga.
+
+Hi ha dues preguntes bàsiques a respondre:
+
+-   Existeixen diferències en el valor de mercat (en escala logarítmica)
+    entre les diferents lligues?
+
+-   Si existeixen diferències, entre quines lligues es donen aquestes
+    diferències?
+
+Per a realitzar aquest exercici, compararem entre sis lligues: SuperL,
+PrimeraD, FeminineD, Bundesliga, NWSL i la resta de lligues. Denomineu
+**league** a la variable categòrica amb aquests sis grups de lligues
+
+```{r}
+anova_unidataset <- ffemale_full[c("value", "league_name")]
+anova_unidataset$lvalue <- log(anova_unidataset$value)
+keywords <- c("Women's Super League", "Primera Division Women", "Feminine Division 1", "Bundesliga", "NWSL")
+pattern <- paste(keywords, collapse = "|")
+anova_unidataset <- anova_unidataset %>% mutate(league = ifelse(str_detect(league_name, pattern), league_name, "Resta"))
+kable(head(anova_unidataset))
+
+
+```
+
+### Visualització gràfica
+
+Mostreu gràficament la distribució de lvalue segons league representant
+els valors mitjans per a cada categoria. Es pot utilitzar la funció
+ggline de la llibreria ggpubr.
+
+```{r}
+library(ggpubr)
+
+ggline(data = anova_unidataset, x = "league", y = "lvalue", 
+       add = "mean_se",         # Afegeix mitjana i error estàndard
+       order = sort(unique(anova_unidataset$league)),  # Opcional: ordenar les categories
+       ylab = "Mitjana de lvalue",
+       xlab = "Lliga",
+       title = "Mitjana de lvalue per league",
+       color = "league",        # Diferents colors per categoria
+       palette = "jco")  +
+  theme(axis.text.x = element_text(angle = 21, hjust = 1))      
+```
+
+### Hipòtesi nul·la i alternativa
+
+Hipòtesis es que la diferencia entre la mitjana de cada un dels subgrups
+i la mitjana total es zero per a tots es a dir que si
+$\alpha_i = \mu-\mu_i$ on \$ \\mu_i\$ es la mitjana dels que pertanyen a
+la classe $i$
+
+$$H_0:  \alpha_1 =  \alpha_2 = \dots = \alpha_6 = 0 \newline H_1:  \alpha_i \ne  \alpha_j \mbox{ per a algun } i \ne j $$
+
+### Model
+
+Realitzeu l’anàlisi de variància (ANOVA), utilitzant la funció **aov** i
+**lm**. Interpreteu el resultat de l’anàlisi.
+
+```{r}
+taov<-aov(lvalue~league,data=anova_unidataset)
+summary(taov)
+```
+
+Obtenim un p-valor de l'ordre de e-15, clarament inferior a un nivell de
+significació del 5 %. Per tant, acceptem la hipòtesi alternativa i
+concloem que el factor és significatiu. És a dir, el tipus de lliga
+afecta a la valoració de la jugadora.
+
+### Aprofundint en ANOVA
+
+A partir dels resultats del model retornat per **aov**, identifiqueu les
+variables SST (Total Sum of Squares), SSW (Within Sum of Squares), SSB
+(Between Sum of Squares) i els graus de llibertat. A partir d’aquests
+valors, calculeu manualment el valor F, el valor crític (a un nivell de
+confiança del 95%), i el valor p. Interpreteu els resultats i expliqueu
+el significat de les variables SST, SSW i SSB
+
+SSB suma de quadrats dels tractaments = 124 es la variabilitat entre les
+mitjanes de cada **league** (efecte del factor)
+
+SSW suma de quadrats de l'error = 3587 Variabilitat dins de cada
+**league** (error/residuals)
+
+SST suma de quadrats total =124 + 3587 = 3711 es la variabilitat total
+de **lvalue**
+
+Respecte els graus de llibertat tenim els de tractaments que son $a-1$
+on $a$ es el numero de classes i els graus de llibertat del error $N-a$
+on $N$ és el nombre total d'instàncies que tenim
+
+$F=\frac{MSW}{MSB}​=\frac{SSB / (a – 1)}{SSW / (N – a)}​=\frac{124 / 5}{3587 / 2239​}\simeq 15.51$
+
+```{r}
+qf(0.95, df1 = 5, df2 = 2239)
+pf(15.50, df1 = 5, df2 = 2239, lower.tail = FALSE)
+```
+
+En resum com que:
+
+F = 2.218094 \> 15.50 (F crític)
+
+p \< 0.05
+
+Rebutgem la hipòtesi nul·la: hi ha diferències significatives en
+**lvalue** entre almenys dues lligues. Ja que
+
+### Efectes dels nivells del factor i força de relació
+
+Proporcioneu l’estimació de l’efecte dels nivells del factor **league**.
+Interpreteu els resultats.
+
+```{r}
+model.tables(taov, type = "effects")
+
+```
+
+Veiem que tenim lligues que tenen un efecte positiu en el preu com la
+Bundesliga o la Feminine Division 1 en canvi també tenim lligues que
+tenen l'efecte contrari com la Primera Division Women o la categoria
+Resta on estan les lligues que no estaven a la llista
+
+Calculeu la part de la variabilitat del valor de mercat (en log)
+explicada per l’efecte dels nivells (força de relació). És a dir,
+calculeu $\eta= \frac{SSB}{SST}$ del model. Interpreteu els resultats.
+
+```{r}
+
+SSB <- 124    # from aov summary (Sum Sq for league)
+SSW <- 3587     # from residuals
+SST <- SSB + SSW
+
+eta2 <- SSB / SST
+eta2
+
+
+```
+
+$\eta^2 = 0.033$ per tant el 3.3% de la variabilitat del log del valor
+de mercat (**lvalue**) s'explica pel factor **league,** per tant la
+lliga a la que pertany una jugadora té una influencia baixa en el seu
+valor al mercat
+
+## Comparacions múltiples
+
+Independentment del resultat obtingut en l’apartat anterior, realitzeu
+un test de comparació múltiple entre els grups amb correcció de
+Bonferroni. Aquest test s’aplica quan el test ANOVA retorna rebutjar la
+hipòtesi nul·la d’igualtat de mitjanes. Per tant, procedirem com si el
+test ANOVA hagués donat com a resultat el rebuig de la hipòtesi nul·la.
+
+Calculeu les comparacions entre grups amb la correcció Bonferroni. Podeu
+utilitzar la funció pairwise.t.test. Interpreteu els resultats
+
+```{r}
+library(stats)
+pairwise.t.test(anova_unidataset$lvalue,anova_unidataset$league, p.adj=c("bonferroni"))
+```
+
+Veiem com tenim dos categories diferenciades, la de les lligues altes on
+podriem ajuntar Bundesliga Women, Feminine Division 1, NWSL i Women's
+Super League que tindrien un lvalue més alt i Primera Division Women amb
+la resta que tindrien un valor més baix
+
+## ANOVA multifactorial
+
+A continuació, es desitja avaluar l’efecte sobre **lvalue** de la lliga
+combinat amb si la jugadora és internacional. Seguiu els passos que
+s’indiquen a continuació.
+
+### Anàlisi visual dels efectes principals i possibles interaccions
+
+Creeu una variable dicotòmica que indiqui si la jugadora és
+internacional a partir de si la jugadora té identificador en el seu
+equip nacional o no. Denomineu la variable **international**.
+
+Dibuixeu en un gràfic la variable **value** (log) en funció de
+**league** i en funció de **international**. El gràfic ha de permetre
+avaluar si hi ha interacció entre els dos factors. Per això, es recomana
+seguir aquests passos:
+
+1.  Agrupeu el conjunt de dades per **league** i per **international**.
+    Calculeu la mitjana del valor per a cada grup. Mostreu el conjunt de
+    dades en forma de taula (data frame), on es mostri la mitjana de
+    cada grup segons **league** i **international**, la desviació
+    estàndard i el nombre d’observacions.
+
+2.  Mostreu en un gràfic el valor mitjà de la variable **lvalue** per a
+    cada factor. Interpreteu el resultat sobre si només hi ha efectes
+    principals o hi ha interacció entre els factors. Si hi ha
+    interacció, expliqueu com s’observa aquesta interacció en el gràfic.
+
+```{r}
+
+anova_multdataset <- ffemale_full[c("value", "league_name","nation_team_id")]
+anova_multdataset$lvalue <- log(anova_multdataset$value)
+keywords <- c("Women's Super League", "Primera Division Women", "Feminine Division 1", "Bundesliga", "NWSL")
+pattern <- paste(keywords, collapse = "|")
+anova_multdataset <- anova_multdataset %>% mutate(league = ifelse(str_detect(league_name, pattern), league_name, "Resta"))
+anova_multdataset <- anova_multdataset %>% mutate(international = ifelse(is.na(nation_team_id), "No", "Si"))
+kable(head(anova_multdataset))
+```
+
+```{r}
+summary_stats <- anova_multdataset %>%
+  group_by(league, international) %>%
+  summarise(
+    mean_lvalue = mean(lvalue, na.rm = TRUE),
+    sd_lvalue = sd(lvalue, na.rm = TRUE),
+    n = n()
+  ) %>%
+  ungroup()
+
+kable((summary_stats))
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(summary_stats, aes(x = league, y = mean_lvalue, group = international, color = international)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  labs(
+    title = "Interacció entre League i International sobre lvalue",
+    x = "League",
+    y = "Mitjana de lvalue (log)",
+    color = "International"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+Veiem com ser una jugadora internacional de mitjana afegeix valor a la
+jugadora, però també sembla que depenent de la lliga aquesta diferencia
+es més gran que altres, per exemple veiem que quan una jugadora esta a
+la NWSL i no va al internacional el seu valor es més alt que una
+jugadora que no va al internacional i esta a Division 1 encanvi si jugen
+internacionals es al reves. Per tant l’efecte d’haver estat jugadora
+internacional depèn de la lliga on juga.
+
+### Càlcul del model
+
+Realitzeu l’anàlisi de la variància multifactorial sobre **lvalue** per
+a la combinació de **league** i **international**. Podeu utilitzar la
+funció **aov**
+
+```{r}
+taovmult <- aov(lvalue ~ league*international, data = anova_multdataset)
+summary(taovmult)
+```
+
+### Interpretació dels resultats
+
+Tant **league** com **international** tenen efectes significatius sobre
+**lvalue**. A més, hi ha una interacció significativa, la qual cosa vol
+dir que l’impacte de ser internacional canvia segons la lliga. El model
+mostra que les dues variables i la seva interacció expliquen una part
+important de la variabilitat del valor de mercat.
+
+## Resum executiu
+
+Escriviu un resum executiu com si haguéssiu de comunicar a una audiència
+no tècnica. Per exemple, podria ser un equip de managers, als quals els
+hi ha d’informar sobre les diferències en el valor de mercat de les
+jugadores.
+
+Aquest estudi analitza com varien els valors de mercat (en logaritme) de
+les jugadores de futbol segons la lliga on juguen i si han estat
+internacionals (és a dir, si han representat la seva selecció nacional).
+
+D'aquest anàlisis podem concloure que ser jugadora internacional té un
+impacte molt rellevant en el valor de mercat. Ja que les jugadores que
+han estat internacionals tenen, de mitjana, un valor de mercat
+significativament més alt.
+
+També veiem que la lliga on juga la jugadora també importa, però menys.
+Degut a que hi ha diferències clares entre lligues, però aquestes són
+menys significatives en el valor de mercat.
+
+Per últim considerar que la combinació dels dos factors (lliga i
+internacionalitat) també és important. Ja que l’impacte de ser
+internacional no és el mateix a totes les lligues. Per exemple, a
+lligues com la “Feminine Division 1” o la “Bundesliga Women”, ser
+internacional incrementa més el valor, comparat amb altres lligues.
+
+Per tant a l’hora de valorar jugadores per a fitxatges o renovacions,
+s’ha de tenir molt en compte la seva trajectòria internacional. També es
+important saber en quina lliga juga ja que aquestes poden condicionar el
+valor, però el més important considerar com es combinen aquests factors,
+ja que una jugadora pot tenir un alt valor pel fet de jugar en una lliga
+concreta i ser internacional.
