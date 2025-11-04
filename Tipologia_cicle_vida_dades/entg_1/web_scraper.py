@@ -8,12 +8,13 @@ filtradas por país.
 import time
 import requests
 from bs4 import BeautifulSoup
+from seleniumbase import Driver
 import os
 import shutil
 import csv
+from seleniumbase import Driver
 
-# Código de país en ISO-2 (ej. "es", "fr", "it")
-country = "es"
+
 
 # Rango de páginas a recorrer (cada página ~10 imágenes según el sitio)
 st_pg = 1
@@ -23,18 +24,53 @@ main_dir = "./data/"
 
 BASE = "https://platesmania.com"
 # Cabeceras para simular un navegador y evitar bloqueos básicos
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' 
-                  'AppleWebKit/537.36 (KHTML, like Gecko) '
-                  'Chrome/115.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Referer': 'https://platesmania.com/',
-    'Connection': 'keep-alive',
-    'DNT': '1',  # Do Not Track
-    'Upgrade-Insecure-Requests': '1',
-}
+from seleniumbase import Driver
+from seleniumbase import BaseCase
+import time 
 
+driver = Driver(
+        browser="chrome",
+        uc=True,
+        headless2=False,
+        incognito=True,
+        agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.5615.138 Safari/537.36 AVG/112.0.21002.139",
+        do_not_track=True,
+        undetectable=True
+    )
+
+def click_manage_options_if_exists(driver):
+    """
+    Detecta y clica el 'Consentir' cookie si existe.
+    """
+    selector = "button.fc-button.fc-cta-consent.fc-primary-button"
+    try:
+        if driver.is_element_present(selector):
+            print("Found 'Consentir' button, clicking it...")
+            driver.click(selector)
+            time.sleep(1)
+        else:
+            print("No cookie options button found.")
+    except Exception as e:
+        print(f"Could not handle cookie button: {e}")
+
+def get_countrys():
+    """
+    Devuelve una lista con todos los paises que dispone la pagina
+    """
+    
+
+    url = BASE + "/countries"
+    driver.get(url)
+    time.sleep(10)
+    click_manage_options_if_exists(driver)
+    html = driver.page_source
+    soup = BeautifulSoup(html, 'html.parser')
+    countrys = [a.find_all("a", href=True)for a in soup.find_all("span", class_="lead")]
+    countrys = [x for x in countrys if x]
+    countrys = [x[0]['href'] for x in countrys]
+    # Hayy muchos paises podremos solo dos para no saturar el serivdor
+    countrys = ['es', 'fr']
+    return countrys
 
 def get_plate_links(country, page):
     """
@@ -42,20 +78,21 @@ def get_plate_links(country, page):
     Retorna lista vacía si no existe el país o no se encuentra la galería.
     """
     url = BASE + "/{}/gallery.php?&start={}".format(country, page)
-    print("\n🔎 Página: {}".format(url))
-    r = requests.get(url, headers=HEADERS)
-    r.raise_for_status()
-    soup = BeautifulSoup(r.text, 'html.parser')
+    driver.get(url)
+    time.sleep(5)
+    click_manage_options_if_exists(driver)
+    html = driver.page_source
+    soup = BeautifulSoup(html, 'html.parser')
 
     # Heurística sencilla para comprobar que el país/galería es válida
-    if not soup.find(string=lambda t: "You have searched:" in t):
-        print("⚠️ No se encontró el país")
+    if not soup.find(string=lambda t: "Has buscado:" in t):
+        print("No se encontró el país")
         return []
 
     # Acotar el HTML a la columna principal donde está la galería
     main_col = soup.find("div", class_="col-md-9")
     if not main_col:
-        print("⚠️ No se encontró la galería principal")
+        print("No se encontró la galería principal")
         return []
     
     items = main_col.find_all("div", class_="col-sm-6")
@@ -134,21 +171,22 @@ def get_plate_links(country, page):
 
 
 try:
-    # Carpeta de destino por país (p.ej. C:\...\ocr5_proto\es)
-    dl_folder = os.path.join(main_dir, country)
-    os.makedirs(dl_folder, exist_ok=True)
-
-    # Cache de nombres ya presentes para evitar re-descargas
-    files = os.listdir(dl_folder)
-
-    # En el sitio, la paginación suele empezar en 0; aquí se usa st_pg-1 por esa razón.
-    for page in range(st_pg - 1, end_pg):
-        time.sleep(2)  # pequeña pausa para no saturar el servidor
-        data = get_plate_links(country, page)
-        with open(dl_folder + "mycsvfile.csv", "w", newline="", encoding="utf-8") as f:
-            w = csv.DictWriter(f, data[0].keys())
-            w.writeheader()
-            w.writerows(data)
+    # Carpeta de destino por país (p.ej. C:\...\data\es)
+    countrys = get_countrys()
+    for country in countrys:
+        dl_folder = os.path.join(main_dir, country)
+        os.makedirs(dl_folder, exist_ok=True)
+    
+        files = os.listdir(dl_folder)
+    
+        # En el sitio, la paginación suele empezar en 0; aquí se usa st_pg-1 por esa razón.
+        for page in range(st_pg - 1, end_pg):
+            time.sleep(2)  # pequeña pausa para no saturar el servidor
+            data = get_plate_links(country, page)
+            with open(dl_folder + "/mycsvfile.csv", "w", newline="", encoding="utf-8") as f:
+                w = csv.DictWriter(f, data[0].keys())
+                w.writeheader()
+                w.writerows(data)
 
 except Exception as e:
-    print("❌ Error general: {}".format(e))
+    print("Error general: {}".format(e))
