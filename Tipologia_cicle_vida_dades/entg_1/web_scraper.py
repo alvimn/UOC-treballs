@@ -6,27 +6,23 @@ filtradas por país.
 """
 
 import time
-import requests
 from bs4 import BeautifulSoup
-from seleniumbase import Driver
 import os
-import shutil
 import csv
 from seleniumbase import Driver
+from seleniumbase import BaseCase
+import time 
 
 
 
 # Rango de páginas a recorrer (cada página ~10 imágenes según el sitio)
 st_pg = 1
-end_pg = 2
+end_pg = 10
 
 main_dir = "./data/"
 
 BASE = "https://platesmania.com"
 # Cabeceras para simular un navegador y evitar bloqueos básicos
-from seleniumbase import Driver
-from seleniumbase import BaseCase
-import time 
 
 driver = Driver(
         browser="chrome",
@@ -68,7 +64,7 @@ def get_countrys():
     countrys = [a.find_all("a", href=True)for a in soup.find_all("span", class_="lead")]
     countrys = [x for x in countrys if x]
     countrys = [x[0]['href'] for x in countrys]
-    # Hayy muchos paises podremos solo dos para no saturar el serivdor
+    # Hay muchos paises podremos solo dos para no saturar el serivdor
     countrys = ['es', 'fr']
     return countrys
 
@@ -183,7 +179,7 @@ try:
         for page in range(st_pg - 1, end_pg):
             time.sleep(2)  # pequeña pausa para no saturar el servidor
             data = get_plate_links(country, page)
-            with open(dl_folder + "/mycsvfile.csv", "w", newline="", encoding="utf-8") as f:
+            with open(dl_folder + "/mycsvfile.csv", "a", newline="", encoding="utf-8") as f:
                 w = csv.DictWriter(f, data[0].keys())
                 w.writeheader()
                 w.writerows(data)
