@@ -515,4 +515,9 @@ interesting questions about the proposed dataset. The following paper describes
 the potential uses of generative AI in the different phases of creating a data
 visualization for storytelling:
 
+```{r save_the_data}
+
+write.csv(x,"./filename.csv", row.names = FALSE)
+```
+
 https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10891192
